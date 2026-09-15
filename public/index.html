@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanzly - Panel Principal</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+</head>
+<body>
+    <header class="navbar">
+        <div class="brand-container">
+            <img src="finanzly_verde.png" id="logo-finanzly" alt="Logo Finanzly" class="brand-icon">
+            <div class="brand-text">
+                <h1 class="brand-name">FINANZLY</h1>
+                <span class="brand-slogan">GESTIÓN INTELIGENTE</span>
+            </div>
+        </div>
+        <nav class="main-nav">
+            <a href="index.html" class="nav-item active">🏠 Inicio</a>
+            <a href="transacciones.html" class="nav-item">🔄 Transacciones</a>
+            <a href="metas.html" class="nav-item">🎯 Metas</a>
+            <button id="theme-toggle" class="theme-toggle-btn" title="Cambiar modo">🌙</button>
+        </nav>
+    </header>
+
+    <main class="content">
+        <header class="content-header">
+            <div>
+                <h1>Panel Principal</h1>
+                <p class="subtitle">Tu resumen financiero de un vistazo</p>
+            </div>
+            <button class="btn-primary" id="openModal">+ Nueva Transacción</button>
+        </header>
+
+        <section class="summary-grid">
+            <div class="card summary-card balance-card">
+                <div class="card-header">
+                    <span>Balance Actual</span>
+                    <div class="icon-circle balance-icon">💼</div>
+                </div>
+                <h2 id="balance-total">$0.00</h2>
+            </div>
+            <div class="card summary-card income-card">
+                <div class="card-header">
+                    <span>Total Ingresos</span>
+                    <div class="icon-circle income-icon">📈</div>
+                </div>
+                <h2 id="ingresos-total" class="text-green">$0.00</h2>
+            </div>
+
+            <div class="card summary-card expense-card">
+                <div class="card-header">
+                    <span>Total Gastos</span>
+                    <div class="icon-circle expense-icon">📉</div>
+                </div>
+                <h2 id="gastos-total" class="text-red">$0.00</h2>
+            </div>
+        </section>
+
+       <section class="charts-grid">
+            <!-- Fila 1, Col 1: Gráfico de Dona -->
+            <div class="card dashboard-card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>Gastos por Categoria</h3>
+                        <p class="subtitle">Distribución de tus egresos</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chartCategorias"></canvas>
+                </div>
+            </div>
+
+            <!-- Fila 1, Col 2: Calendario de Actividad -->
+            <div class="card dashboard-card">
+                <h3>Calendario de Actividad</h3>
+                <div id="calendar"></div>
+            </div>
+
+            <!-- Tarjeta 1: 'Comparativa Mensual' (Movida debajo de Categorías) -->
+            <div class="card dashboard-card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>Comparativa Mensual</h3>
+                        <p class="subtitle">Evolución entre periodos</p>
+                    </div>
+                </div>
+                <div class="comparativa-controls">
+                    <select id="select-mes-1" class="select-mini"></select>
+                    <span class="vs-text">VS</span>
+                    <select id="select-mes-2" class="select-mini"></select>
+                </div>
+                <div id="comparativa-container"></div>
+                <div id="comparativa-insights" class="insights-section"></div>
+            </div>
+
+            <!-- Tarjeta 2: Vista Semanal (Movida debajo de Calendario) -->
+            <div class="card dashboard-card">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>Vista Semanal</h3>
+                        <p class="subtitle">Ingresos y gastos diarios</p>
+                        <p id="semana-rango" class="subtitle" style="font-weight: 600; color: var(--primary); margin-top: 4px;"></p>
+                    </div>
+                    <div class="comparativa-controls" style="margin-bottom: 0;">
+                        <button id="prev-week" class="select-mini" title="Semana anterior">◀</button>
+                        <button id="next-week" class="select-mini" title="Semana siguiente">▶</button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="grafico-semanal"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-bottom-grid">
+            <!-- SECCIÓN: ALERTAS DE PRESUPUESTO (Movida a la parte inferior) -->
+            <section class="card dashboard-card full-width-grid-item">
+                <div class="card-header-flex">
+                    <div>
+                        <h3>Alertas de Presupuesto</h3>
+                        <p class="subtitle">Límites mensuales por categoría de gasto</p>
+                    </div>
+                    <button id="btn-anadir-limite" class="btn-primary">+ Añadir límite</button>
+                </div>
+                
+                <div id="contenedor-alertas" class="alerts-container">
+                    <div class="estado-vacio">
+                        <div class="icono-vacio">⚙️</div>
+                        <p>Sin límites configurados aún.<br>Añade un límite para recibir alertas.</p>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <div id="modal-transaccion" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nueva Transacción</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            
+            <div class="form-group">
+                <div class="transaction-type-selector">
+                    <input type="radio" id="tipo-gasto" name="tipo" value="gasto" checked>
+                    <label for="tipo-gasto" class="type-btn gasto-btn">Gasto</label>
+
+                    <input type="radio" id="tipo-ingreso" name="tipo" value="ingreso">
+                    <label for="tipo-ingreso" class="type-btn ingreso-btn">Ingreso</label>
+                </div>
+            </div>
+
+            <form id="form-transaccion">
+                <div class="input-group">
+                    <label>Monto</label>
+                    <input type="text" id="monto-modal" placeholder="0" required>
+                </div>
+                
+                <div class="input-group">
+                    <label>Categoría</label>
+                    <select id="categoria-modal" required>
+                        <option value="" disabled selected>Seleccionar categoría</option>
+                    </select>
+                </div>
+                
+                <div class="input-group" id="contenedor-descripcion">
+                    <label>Descripción</label>
+                    <input type="text" id="descripcion-modal" placeholder="¿Para qué fue esto?">
+                </div>
+                
+                <div class="input-group">
+                    <label>Fecha</label>
+                    <input type="date" id="fecha-modal" required>
+                </div>
+                <button type="submit" class="btn-submit">Guardar Transacción</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIGURACIÓN DE PRESUPUESTO -->
+    <div id="modal-config-presupuesto" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Límites Mensuales</h2>
+                <button type="button" id="close-config-presupuesto" class="close-btn">&times;</button>
+            </div>
+            <p class="subtitle" style="margin-bottom: 15px;">Define el monto máximo que planeas gastar por categoría.</p>
+            <form id="form-config-presupuesto">
+                <div id="inputs-limites-container" style="max-height: 350px; overflow-y: auto; padding-right: 10px;"></div>
+                <button type="submit" class="btn-submit" style="margin-top: 20px;">Guardar Límites</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: NUEVO LÍMITE DE GASTO -->
+    <div id="modal-nuevo-limite" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nuevo límite de gasto</h2>
+                <button type="button" class="close-btn" id="close-nuevo-limite">&times;</button>
+            </div>
+            <form id="form-nuevo-limite">
+                <div class="input-group">
+                    <label>Categoría</label>
+                    <select id="nuevo-limite-categoria" required>
+                        <option value="" disabled selected>Seleccionar categoría</option>
+                        <option value="Servicios">Servicios</option>
+                        <option value="Alimentos">Alimentos</option>
+                        <option value="Transporte">Transporte</option>
+                        <option value="Seguros">Seguros</option>
+                        <option value="Salud">Salud</option>
+                        <option value="Educación">Educación</option>
+                        <option value="Formación Profesional">Formación Profesional</option>
+                        <option value="Alquiler">Alquiler</option>
+                        <option value="Ocio">Ocio</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Monto del Límite</label>
+                    <input type="text" id="nuevo-limite-monto" placeholder="0" required>
+                </div>
+                <button type="submit" class="btn-submit" style="background-color: var(--primary); margin-top: 10px;">Guardar límite</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIRMAR ELIMINAR META -->
+    <div id="modal-confirmar-eliminar" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-content-small">
+            <div class="modal-header">
+                <h2 id="modal-confirmar-eliminar-title" style="color: var(--red);"></h2>
+                <button type="button" class="close-btn" id="close-confirmar-eliminar">&times;</button>
+            </div>
+            <p id="modal-confirmar-eliminar-message" style="text-align: center; margin-bottom: 20px; font-size: 0.95rem; color: var(--text-muted);"></p>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" id="btn-cancelar-eliminar" class="btn-submit" style="background-color: var(--border); color: var(--text-main); margin-top: 0;">No, volver</button>
+                <button type="button" id="btn-confirmar-eliminar" class="btn-submit" style="background-color: var(--red); margin-top: 0;">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ABONAR A META -->
+    <div id="modal-abono-meta" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-content-small">
+            <div class="modal-header">
+                <h2>Abonar a Meta</h2>
+                <button type="button" class="close-btn" id="close-abono-meta">&times;</button>
+            </div>
+            <form id="form-abono-meta">
+                <div class="input-group">
+                    <label>¿Cuánto dinero deseas sumar a esta meta?</label>
+                    <input type="text" id="monto-abono" placeholder="0" required>
+                </div>
+                <button type="submit" id="btn-regar-meta" class="btn-submit" disabled>Regar la meta</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

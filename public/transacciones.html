@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finanzly - Transacciones</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/material_green.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="brand-container">
+            <img src="finanzly_verde.png" id="logo-finanzly" alt="Logo Finanzly" class="brand-icon">
+            <div class="brand-text">
+                <h1 class="brand-name">FINANZLY</h1>
+                <span class="brand-slogan">GESTIÓN INTELIGENTE</span>
+            </div>
+        </div>
+        <nav class="main-nav">
+            <a href="index.html" class="nav-item">🏠 Inicio</a>
+            <a href="transacciones.html" class="nav-item active">🔄 Transacciones</a>
+            <a href="metas.html" class="nav-item">🎯 Metas</a>
+            <button id="theme-toggle" class="theme-toggle-btn" title="Cambiar modo">🌙</button>
+        </nav>
+    </header>
+
+    <main class="content">
+        <div class="content-header">
+            <h1>Transacciones</h1>
+            <button class="btn-primary" id="openModal">+ Nueva Transacción</button>
+        </div>
+
+        <section class="card filters-row">
+            <input type="text" id="filtro-busqueda" placeholder="Buscar transacciones..." class="search-input">
+            
+            <select id="filtro-tipo" class="filter-select">
+                <option value="todos">Todos los Tipos</option>
+                <option value="ingreso">Ingreso</option>
+                <option value="gasto">Gasto</option>
+            </select>
+            
+            <select id="filtro-categoria" class="filter-select">
+                <option value="todas">Todas las Categorías</option>
+                <option value="comida">Comida</option>
+                <option value="transporte">Transporte</option>
+                <option value="salario">Salario</option>
+                <option value="estudio">Estudio</option>
+                <option value="ocio">Ocio</option>
+                <option value="otros">Otros</option>
+            </select>
+            <input type="date" id="filtro-fecha" class="filter-select" title="Filtrar por fecha">
+            <button id="btn-limpiar-fecha" class="select-mini" title="Limpiar fecha" style="margin-left: -10px; margin-right: 5px; font-weight: bold; display: none;">✕</button>
+            <button id="btn-resumen-reporte" class="btn-success">Resumen</button>
+        </section>
+
+        <table class="transactions-table">
+            <thead>
+                <tr>
+                    <th>FECHA</th>
+                    <th>TIPO</th>
+                    <th>CATEGORÍA</th>
+                    <th>DESCRIPCIÓN</th>
+                    <th>MONTO</th>
+                    <th>ACCIONES</th>
+                </tr>
+            </thead>
+            <tbody id="lista-transacciones">
+                <!-- Se poblará dinámicamente -->
+            </tbody>
+        </table>
+    </main>
+
+    <!-- Modal de Transacción -->
+    <div id="modal-transaccion" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nueva Transacción</h2>
+                <button type="button" class="close-btn">&times;</button>
+            </div>
+            
+         <div class="form-group">
+         <div class="transaction-type-selector">
+         <input type="radio" id="tipo-gasto" name="tipo" value="gasto" checked>
+         <label for="tipo-gasto" class="type-btn gasto-btn">Gasto</label>
+
+         <input type="radio" id="tipo-ingreso" name="tipo" value="ingreso">
+         <label for="tipo-ingreso" class="type-btn ingreso-btn">Ingreso</label>
+         </div>
+            
+            <form id="form-transaccion">
+                <div class="input-group">
+                    <label>Monto</label>
+                    <input type="text" id="monto-modal" placeholder="0" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Categoría</label>
+                    <select id="categoria-modal" required>
+                        <option value="Comida">Comida</option>
+                        <option value="Transporte">Transporte</option>
+                        <option value="Salario">Salario</option>
+                        <option value="Estudio">Estudio</option>
+                        <option value="Ocio">Ocio</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="contenedor-descripcion">
+                    <label>Descripción</label>
+                    <input type="text" id="descripcion-modal" placeholder="¿Para qué fue esto?">
+                </div>
+
+                <div class="input-group">
+                    <label>Fecha</label>
+                    <input type="date" id="fecha-modal" required>
+                </div>
+
+                <button type="submit" class="btn-submit">Guardar Transacción</button>
+            </form>
+        </div>
+    </div>
+    </div>
+
+    <!-- Modal de Resumen de Transacciones -->
+    <div id="modal-resumen" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 550px;">
+            <div class="modal-header">
+                <h2>Resumen de Transacciones</h2>
+                <button type="button" class="close-btn" id="close-resumen">&times;</button>
+            </div>
+            <div id="resumen-info"></div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="btn-export-pdf" class="btn-submit" style="background: #e11d48; flex: 1;">Descargar PDF</button>
+                <button id="btn-export-excel" class="btn-submit" style="background: #16a34a; flex: 1;">Descargar Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIRMAR ELIMINAR META -->
+    <div id="modal-confirmar-eliminar" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-content-small">
+            <div class="modal-header">
+                <h2 id="modal-confirmar-eliminar-title" style="color: var(--red);"></h2>
+                <button type="button" class="close-btn" id="close-confirmar-eliminar">&times;</button>
+            </div>
+            <p id="modal-confirmar-eliminar-message" style="text-align: center; margin-bottom: 20px; font-size: 0.95rem; color: var(--text-muted);"></p>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" id="btn-cancelar-eliminar" class="btn-submit" style="background-color: var(--border); color: var(--text-main); margin-top: 0;">No, volver</button>
+                <button type="button" id="btn-confirmar-eliminar" class="btn-submit" style="background-color: var(--red); margin-top: 0;">Sí, eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ABONAR A META -->
+    <div id="modal-abono-meta" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-content-small">
+            <div class="modal-header">
+                <h2>Abonar a Meta</h2>
+                <button type="button" class="close-btn" id="close-abono-meta">&times;</button>
+            </div>
+            <form id="form-abono-meta">
+                <div class="input-group">
+                    <label>¿Cuánto dinero deseas sumar a esta meta?</label>
+                    <input type="text" id="monto-abono" placeholder="0" required>
+                </div>
+                <button type="submit" id="btn-regar-meta" class="btn-submit" disabled>Regar la meta</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    <script src="script.js?v=20260827"></script>
+</body>
+</html>
