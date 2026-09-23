@@ -1,0 +1,11 @@
+#!/bin/sh
+echo "🔍 [Sprint 2] Ejecutando análisis automático de SonarQube..."
+
+npx sonar-scanner
+
+if [ $? -ne 0 ]; then
+  echo "❌ El análisis falló. Se canceló el push."
+  exit 1
+fi
+
+echo "✅ Análisis completado con éxito. Enviando cambios..."

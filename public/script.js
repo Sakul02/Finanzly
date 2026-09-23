@@ -1395,7 +1395,6 @@ function configurarFormularios() {
 
                 // ==========================================
                 // ACTUALIZAR INTERFAZ SIN F5
-                // ==========================================
 
                 await window.cargarGraficos();
 
