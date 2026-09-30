@@ -1,5 +1,5 @@
 #!/bin/sh
-echo "🔍 [Sprint 2] Ejecutando análisis automático de SonarQube..."
+echo "🔍 Ejecutando análisis automático de SonarQube..."
 
 npx sonar-scanner
 
