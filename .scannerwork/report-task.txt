@@ -2,5 +2,5 @@ projectKey=finanzly
 serverUrl=http://localhost:9000
 serverVersion=26.9.0.129388
 dashboardUrl=http://localhost:9000/dashboard?id=finanzly
-ceTaskId=cb804f34-4fef-4b2c-baf5-25155785eaac
-ceTaskUrl=http://localhost:9000/api/ce/task?id=cb804f34-4fef-4b2c-baf5-25155785eaac
+ceTaskId=0f6317d8-b1cc-4e80-9949-42e304c026ad
+ceTaskUrl=http://localhost:9000/api/ce/task?id=0f6317d8-b1cc-4e80-9949-42e304c026ad
