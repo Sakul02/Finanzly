@@ -1392,6 +1392,7 @@ function configurarFormularios() {
                 if (btnS) {
                     btnS.disabled = true;
                 }
+                // ==========================================
                 // ACTUALIZAR INTERFAZ SIN F5
                 // ==========================================
 
