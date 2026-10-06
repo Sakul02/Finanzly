@@ -317,7 +317,6 @@ async function revisarNotificacionesLimites(id_usuario) {
             }
 
 
-            // ==========================================
             // CALCULAR PORCENTAJE UTILIZADO
             // ==========================================
 
@@ -335,7 +334,6 @@ async function revisarNotificacionesLimites(id_usuario) {
             let nivel = null;
             let titulo = null;
             let mensaje = null;
-
 
             // ==========================================
             // 🔴 100% O MÁS
