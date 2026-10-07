@@ -567,9 +567,41 @@ app.post('/api/limites', async (req, res) => {
             periodo
         } = req.body;
 
-        if (!id_usuario) {
+        if (
+            !/^\d+$/.test(String(id_usuario ?? '')) ||
+            !/^\d+$/.test(String(id_categoria ?? '')) ||
+            !Number.isFinite(Number(monto_limite)) ||
+            Number(monto_limite) <= 0 ||
+            !['MENSUAL', 'SEMANAL', 'ANUAL'].includes(periodo)
+        ) {
             return res.status(400).json({
-                error: "Falta el id_usuario"
+                error: "El usuario, la categoría, el monto o el período del límite no son válidos"
+            });
+        }
+
+        const usuario = await pool.query(`
+            SELECT id_usuario
+            FROM public.usuarios
+            WHERE id_usuario = $1
+        `, [id_usuario]);
+
+        if (usuario.rowCount === 0) {
+            return res.status(404).json({
+                error: "Usuario no encontrado"
+            });
+        }
+
+        const categoria = await pool.query(`
+            SELECT id_categoria
+            FROM public.categorias
+            WHERE id_categoria = $1
+              AND tipo = 'GASTO'
+              AND (id_usuario = $2 OR id_usuario IS NULL)
+        `, [id_categoria, id_usuario]);
+
+        if (categoria.rowCount === 0) {
+            return res.status(404).json({
+                error: "Categoría de gasto no encontrada para este usuario"
             });
         }
 
@@ -638,7 +670,7 @@ app.get('/api/limites', async (req, res) => {
 
 console.log(
     "📊 LÍMITES ENCONTRADOS:",
-    limites.rows
+    resultado.rows
 );
 
         res.json(resultado.rows);
@@ -902,9 +934,18 @@ app.put('/api/metas/:id', async (req, res) => {
 // ELIMINAR UNA META DE AHORRO
 // ==========================================
 app.delete('/api/metas/:id', async (req, res) => {
+    let client;
+    let transactionStarted = false;
+
     try {
-        const idBuscar = parseInt(req.params.id);
+        const idBuscar = req.params.id;
         const { id_usuario } = req.query;
+
+        if (!/^\d+$/.test(idBuscar)) {
+            return res.status(400).json({
+                error: "El ID de la meta no es válido"
+            });
+        }
 
         // Verificar usuario
         if (!id_usuario) {
@@ -913,7 +954,61 @@ app.delete('/api/metas/:id', async (req, res) => {
             });
         }
 
-        const resultado = await pool.query(`
+        client = await pool.connect();
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        const meta = await client.query(`
+            SELECT id_meta
+            FROM public.metas
+            WHERE id_meta = $1
+              AND id_usuario = $2
+            FOR UPDATE
+        `, [
+            idBuscar,
+            id_usuario
+        ]);
+
+        if (meta.rowCount === 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
+
+            return res.status(404).json({
+                error: "Meta no encontrada o no pertenece al usuario"
+            });
+        }
+
+        const movimientosDeOtroUsuario = await client.query(`
+            SELECT 1
+            FROM public.movimientos
+            WHERE id_meta = $1
+              AND id_usuario <> $2
+            LIMIT 1
+        `, [
+            idBuscar,
+            id_usuario
+        ]);
+
+        if (movimientosDeOtroUsuario.rowCount > 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
+
+            return res.status(409).json({
+                error: "La meta tiene movimientos asociados a otro usuario y no puede eliminarse."
+            });
+        }
+
+        // Los TRASPASO requieren id_meta por una restricción de la tabla movimientos.
+        await client.query(`
+            DELETE FROM public.movimientos
+            WHERE id_meta = $1
+              AND id_usuario = $2
+        `, [
+            idBuscar,
+            id_usuario
+        ]);
+
+        const resultado = await client.query(`
             DELETE FROM public.metas
             WHERE id_meta = $1
               AND id_usuario = $2
@@ -923,11 +1018,17 @@ app.delete('/api/metas/:id', async (req, res) => {
             id_usuario
         ]);
 
-        if (resultado.rows.length === 0) {
+        if (resultado.rowCount === 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
+
             return res.status(404).json({
                 error: "Meta no encontrada o no pertenece al usuario"
             });
         }
+
+        await client.query('COMMIT');
+        transactionStarted = false;
 
         res.status(200).json({
             mensaje: "Meta eliminada con éxito",
@@ -935,6 +1036,16 @@ app.delete('/api/metas/:id', async (req, res) => {
         });
 
     } catch (error) {
+        if (client && transactionStarted) {
+            try {
+                await client.query('ROLLBACK');
+            } catch (rollbackError) {
+                console.error(
+                    "❌ Error al revertir la eliminación de la meta:",
+                    rollbackError
+                );
+            }
+        }
 
         console.error(
             "❌ Error al eliminar meta:",
@@ -942,8 +1053,14 @@ app.delete('/api/metas/:id', async (req, res) => {
         );
 
         res.status(500).json({
-            error: "Error interno al eliminar la meta"
+            error: error.message,
+            detalle: error.detail,
+            codigo: error.code
         });
+    } finally {
+        if (client) {
+            client.release();
+        }
     }
 });
 

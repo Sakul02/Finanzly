@@ -587,6 +587,10 @@ function configurarModales() {
                     e
                 );
 
+                alert(
+                    "No se pudo completar la eliminación de la meta. Inténtalo nuevamente."
+                );
+
             }
 
             return;
@@ -1956,7 +1960,7 @@ async function cargarMetas() {
                         <div class="goal-actions" style="display: flex; gap: 6px;">
                             <button class="add-btn" onclick="abonarAMeta(${meta.id})" title="Abonar a la meta" style="background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 2px;">➕</button>
                             <button class="edit-btn" onclick="prepararEdicionMeta('${parametrosEdicion}')" style="background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 2px;">✏️</button>
-                            <button class="delete-btn" onclick="eliminarMeta(${meta.id})" style="background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 2px;">🗑️</button>
+                            <button class="delete-btn" onclick="eliminarMeta('${meta.id}')" style="background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 2px;">🗑️</button>
                         </div>
                     </div>
                 </div>
@@ -4410,8 +4414,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnAnadir && modalNuevo) {
 
-        btnAnadir.addEventListener('click', () => {
-            modalNuevo.style.display = 'flex';
+        btnAnadir.addEventListener('click', async () => {
+            const usuario = obtenerUsuarioActual();
+            const selectorCategoria =
+                document.getElementById('nuevo-limite-categoria');
+
+            if (!usuario?.id_usuario || !selectorCategoria) {
+                alert("No hay un usuario iniciado.");
+                return;
+            }
+
+            try {
+                const resCategorias = await fetch('/api/categorias');
+
+                if (!resCategorias.ok) {
+                    throw new Error('No se pudieron obtener las categorías.');
+                }
+
+                const categorias = await resCategorias.json();
+                const categoriasGasto = categorias.filter(categoria =>
+                    String(categoria.tipo || '').trim().toUpperCase() === 'GASTO' &&
+                    (
+                        categoria.id_usuario === null ||
+                        String(categoria.id_usuario) === String(usuario.id_usuario)
+                    )
+                );
+
+                selectorCategoria.replaceChildren(
+                    new Option('Seleccionar categoría', '', true, true)
+                );
+                selectorCategoria.options[0].disabled = true;
+
+                categoriasGasto.forEach(categoria => {
+                    selectorCategoria.add(
+                        new Option(categoria.nombre, categoria.id_categoria)
+                    );
+                });
+
+                if (categoriasGasto.length === 0) {
+                    throw new Error('No hay categorías de gasto disponibles para este usuario.');
+                }
+
+                modalNuevo.style.display = 'flex';
+            } catch (error) {
+                console.error('❌ Error al cargar categorías para el límite:', error);
+                alert(error.message || 'No se pudieron cargar las categorías.');
+            }
         });
 
     }
@@ -4480,20 +4528,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 // OBTENER DATOS DEL FORMULARIO
                 // ==========================================
 
-                const categoria =
+                const idCategoria =
                     document
                         .getElementById('nuevo-limite-categoria')
                         .value;
 
+                const montoValor =
+                    document
+                        .getElementById('nuevo-limite-monto')
+                        .value;
+
                 const monto =
                     obtenerNumeroLimpio(
-                        document
-                            .getElementById('nuevo-limite-monto')
-                            .value
+                        montoValor
                     );
 
 
-                if (!categoria) {
+                if (!idCategoria) {
 
                     alert(
                         "Seleccioná una categoría."
@@ -4503,7 +4554,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
 
-                if (!monto || monto <= 0) {
+                if (!montoValor.trim() || !Number.isFinite(monto) || monto <= 0) {
 
                     alert(
                         "Ingresá un monto válido."
@@ -4511,61 +4562,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     return;
                 }
-
-
-                // ==========================================
-                // OBTENER CATEGORÍAS
-                // ==========================================
-
-                const resCategorias =
-                    await fetch('/api/categorias');
-
-
-                if (!resCategorias.ok) {
-
-                    throw new Error(
-                        'No se pudieron obtener las categorías'
-                    );
-
-                }
-
-
-                const categorias =
-                    await resCategorias.json();
-
-
-                // ==========================================
-                // BUSCAR CATEGORÍA
-                // ==========================================
-
-                const categoriaEncontrada =
-                    categorias.find(
-                        c =>
-                            c.nombre.toLowerCase() ===
-                            categoria.toLowerCase() &&
-                            c.tipo === 'GASTO'
-                    );
-
-
-                if (!categoriaEncontrada) {
-
-                    console.error(
-                        '❌ No se encontró la categoría:',
-                        categoria
-                    );
-
-                    alert(
-                        `No se encontró la categoría "${categoria}".`
-                    );
-
-                    return;
-                }
-
-
-                console.log(
-                    "📂 CATEGORÍA SELECCIONADA:",
-                    categoriaEncontrada
-                );
 
 
                 // ==========================================
@@ -4578,7 +4574,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         usuario.id_usuario,
 
                     id_categoria:
-                        categoriaEncontrada.id_categoria,
+                        idCategoria,
 
                     monto_limite:
                         monto,
