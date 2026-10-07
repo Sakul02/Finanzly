@@ -20,6 +20,16 @@
             <a href="index.html" class="nav-item">🏠 Inicio</a>
             <a href="transacciones.html" class="nav-item">🔄 Transacciones</a>
             <a href="metas.html" class="nav-item active">🎯 Metas</a>
+            <div class="user-menu" id="user-menu" hidden>
+                <button type="button" class="user-menu-trigger" id="user-menu-trigger" aria-expanded="false" aria-controls="user-menu-dropdown">
+                    <span class="user-avatar" id="user-avatar" aria-hidden="true"></span>
+                    <span class="user-display-name" id="user-display-name"></span>
+                    <span class="user-menu-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
+                    <button type="button" class="user-logout-btn" id="user-logout-btn">Cerrar sesión</button>
+                </div>
+            </div>
             <button id="theme-toggle" class="theme-toggle-btn" title="Cambiar modo">🌙</button>
         </nav>
     </header>

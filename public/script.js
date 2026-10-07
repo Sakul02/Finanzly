@@ -426,6 +426,84 @@ function obtenerUsuarioActual() {
     }
 }
 
+function exigirSesionActiva() {
+    if (obtenerUsuarioActual()?.id_usuario) {
+        return true;
+    }
+
+    window.location.replace('login.html');
+    return false;
+}
+
+function configurarMenuUsuario() {
+    const menu = document.getElementById('user-menu');
+    const trigger = document.getElementById('user-menu-trigger');
+    const dropdown = document.getElementById('user-menu-dropdown');
+    const avatar = document.getElementById('user-avatar');
+    const displayName = document.getElementById('user-display-name');
+    const logout = document.getElementById('user-logout-btn');
+
+    if (!menu || !trigger || !dropdown || !avatar || !displayName || !logout) {
+        return;
+    }
+
+    const usuario = obtenerUsuarioActual();
+    if (!usuario?.id_usuario) {
+        return;
+    }
+
+    const nombre = String(usuario.nombre || '').trim();
+    const apellido = String(usuario.apellido || '').trim();
+    const nombreCompleto = `${nombre} ${apellido}`.trim() || String(usuario.email || '').trim();
+    const inicial = (nombre || apellido || nombreCompleto).charAt(0).toLocaleUpperCase('es');
+
+    avatar.textContent = inicial;
+    displayName.textContent = nombreCompleto || 'Usuario';
+    menu.hidden = false;
+
+    const cerrarDropdown = () => {
+        dropdown.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+    };
+
+    trigger.addEventListener('click', () => {
+        const abrir = dropdown.hidden;
+        dropdown.hidden = !abrir;
+        trigger.setAttribute('aria-expanded', String(abrir));
+    });
+
+    document.addEventListener('click', event => {
+        if (!menu.contains(event.target)) {
+            cerrarDropdown();
+        }
+    });
+
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && !dropdown.hidden) {
+            cerrarDropdown();
+            trigger.focus();
+        }
+    });
+
+    logout.addEventListener('click', () => {
+        try {
+            sessionStorage.removeItem('finanzly_usuario');
+            menu.hidden = true;
+            window.location.replace('login.html');
+        } catch (error) {
+            console.error('❌ Error al cerrar la sesión:', error);
+            alert('No se pudo cerrar la sesión. Inténtalo nuevamente.');
+        }
+    });
+
+    window.addEventListener('pageshow', event => {
+        if (event.persisted && !obtenerUsuarioActual()) {
+            menu.hidden = true;
+            window.location.replace('login.html');
+        }
+    });
+}
+
 // ==========================================
 // OBTENER TRANSACCIONES DEL USUARIO ACTUAL
 // ==========================================
@@ -2129,6 +2207,9 @@ function actualizarNavActiva() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    if (!exigirSesionActiva()) {
+        return;
+    }
 
     // ==========================================
     // VINCULAR BOTÓN DE TEMA
@@ -2150,6 +2231,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // CONFIGURACIONES INICIALES
     // ==========================================
     actualizarNavActiva();
+    configurarMenuUsuario();
     configurarModales();
     configurarFormularios();
     configurarTransicionesPagina();
@@ -2495,20 +2577,6 @@ botonNotificaciones.addEventListener('click', async () => {
         );
 
 });
-
-cargarTransacciones();{(
-    document.getElementById('filtro-categoria')?.addEventListener('change', cargarTransacciones));
-    inicializarFiltroFechaConMarcadores();
-
-    // Botón para limpiar el filtro de fecha
-    document.getElementById('btn-limpiar-fecha')?.addEventListener('click', () => {
-        const input = document.getElementById('filtro-fecha');
-        if (input && input._flatpickr) {
-            input._flatpickr.clear();
-        }
-    });
-
-};
 
 // ==========================================================
 // CARGAR TRANSACCIONES DEL USUARIO ACTUAL
@@ -4278,6 +4346,9 @@ window.eliminarLimite = async function(categoria) {
 
     // Lógica de inicialización segura del componente de Presupuesto
 document.addEventListener('DOMContentLoaded', () => {
+    if (!exigirSesionActiva()) {
+        return;
+    }
 
     // ==========================================
     // BOTÓN DE NOTIFICACIONES

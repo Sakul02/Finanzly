@@ -504,6 +504,98 @@ body {
     justify-content: center;
     transition: all 0.3s ease;
 }
+
+.user-menu {
+    position: relative;
+    flex: 0 1 auto;
+}
+
+.user-menu[hidden],
+.user-menu-dropdown[hidden] {
+    display: none;
+}
+
+.user-menu-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 40px;
+    max-width: 17rem;
+    padding: 0.25rem 0.65rem 0.25rem 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--card-bg);
+    color: var(--text-main);
+    font: inherit;
+    cursor: pointer;
+}
+
+.user-menu-trigger:hover,
+.user-menu-trigger:focus-visible {
+    border-color: var(--primary);
+    outline: none;
+}
+
+.user-avatar {
+    display: grid;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.user-display-name {
+    overflow: hidden;
+    color: var(--text-main);
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-menu-chevron {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.user-menu-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 1100;
+    min-width: 12rem;
+    padding: 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    background: var(--card-bg);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+}
+
+.user-logout-btn {
+    width: 100%;
+    min-height: 40px;
+    padding: 0.6rem 0.75rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-main);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.user-logout-btn:hover,
+.user-logout-btn:focus-visible {
+    outline: none;
+    background: var(--bg-color);
+    color: var(--red);
+}
+
 /* Configuración del botón de notificaciones */
 .floating-notification-btn {
     position: fixed;
@@ -2119,6 +2211,22 @@ input::-webkit-credentials-reveal-button {
 
     .theme-toggle-btn {
         flex: 0 0 40px;
+    }
+
+    .user-menu {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .user-menu-trigger {
+        max-width: 100%;
+        min-width: 0;
+        padding-right: 0.45rem;
+    }
+
+    .user-display-name {
+        min-width: 0;
+        font-size: 0.78rem;
     }
 
     .content {
