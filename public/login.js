@@ -361,8 +361,7 @@ togglePasswordBtn.addEventListener('click', () => {
 function persistRememberedCredentials() {
     if (rememberMeCheckbox.checked) {
         localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
-            email: emailInput.value,
-            password: passwordInput.value
+            email: emailInput.value.trim()
         }));
     } else {
         localStorage.removeItem(REMEMBER_ME_KEY);
@@ -372,15 +371,19 @@ function persistRememberedCredentials() {
 function loadRememberedCredentials() {
     try {
         const saved = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) || 'null');
-        if (saved?.email) {
+        if (typeof saved?.email === 'string' && saved.email) {
             emailInput.value = saved.email;
-            passwordInput.value = saved.password || '';
             rememberMeCheckbox.checked = true;
+            localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
+                email: saved.email
+            }));
             updateEmailFeedback();
-            updatePasswordMeter();
             updateFormValidity();
+        } else {
+            localStorage.removeItem(REMEMBER_ME_KEY);
         }
     } catch (error) {
+        localStorage.removeItem(REMEMBER_ME_KEY);
         console.warn('No se pudieron cargar los datos guardados.', error);
     }
 }

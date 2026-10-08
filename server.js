@@ -3,9 +3,14 @@ require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { promisify } = require('util');
 const { Pool } = require('pg');
 const app = express();
 const PORT = 4000;
+const scrypt = promisify(crypto.scrypt);
+const PASSWORD_HASH_PARAMETERS = { N: 16384, r: 8, p: 1 };
+const PASSWORD_HASH_KEY_LENGTH = 32;
 
 const DATA_FILE = path.join(__dirname, 'data.json');
 const pool = new Pool({
@@ -29,12 +34,76 @@ app.use(express.static(path.join(__dirname, 'public')));
 // LOGIN
 // ==========================================
 
+async function hashPassword(password) {
+    const salt = crypto.randomBytes(16);
+    const derivedKey = await scrypt(
+        password,
+        salt,
+        PASSWORD_HASH_KEY_LENGTH,
+        PASSWORD_HASH_PARAMETERS
+    );
+
+    return [
+        'scrypt',
+        PASSWORD_HASH_PARAMETERS.N,
+        PASSWORD_HASH_PARAMETERS.r,
+        PASSWORD_HASH_PARAMETERS.p,
+        salt.toString('hex'),
+        derivedKey.toString('hex')
+    ].join('$');
+}
+
+async function verifyPassword(password, storedPassword) {
+    if (typeof storedPassword !== 'string') {
+        return { valid: false, needsUpgrade: false };
+    }
+
+    if (!storedPassword.startsWith('scrypt$')) {
+        return {
+            valid: storedPassword === password,
+            needsUpgrade: true
+        };
+    }
+
+    const parts = storedPassword.split('$');
+    if (
+        parts.length !== 6 ||
+        parts[1] !== String(PASSWORD_HASH_PARAMETERS.N) ||
+        parts[2] !== String(PASSWORD_HASH_PARAMETERS.r) ||
+        parts[3] !== String(PASSWORD_HASH_PARAMETERS.p) ||
+        !/^[a-f0-9]{32}$/i.test(parts[4]) ||
+        !/^[a-f0-9]{64}$/i.test(parts[5])
+    ) {
+        return { valid: false, needsUpgrade: false };
+    }
+
+    const salt = Buffer.from(parts[4], 'hex');
+    const expectedKey = Buffer.from(parts[5], 'hex');
+    const actualKey = await scrypt(
+        password,
+        salt,
+        PASSWORD_HASH_KEY_LENGTH,
+        PASSWORD_HASH_PARAMETERS
+    );
+
+    return {
+        valid: crypto.timingSafeEqual(actualKey, expectedKey),
+        needsUpgrade: false
+    };
+}
+
 app.post('/api/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
         // Verificar que lleguen los datos
-        if (!email || !password) {
+        if (
+            typeof email !== 'string' ||
+            typeof password !== 'string' ||
+            !email.trim() ||
+            !password ||
+            Buffer.byteLength(password, 'utf8') > 1024
+        ) {
             return res.status(400).json({
                 error: 'Email y contraseña son obligatorios'
             });
@@ -62,11 +131,24 @@ app.post('/api/login', async (req, res) => {
 
         const usuario = resultado.rows[0];
 
-        // Verificar contraseña
-        if (usuario.password !== password) {
+        const passwordVerification = await verifyPassword(
+            password,
+            usuario.password
+        );
+        if (!passwordVerification.valid) {
             return res.status(401).json({
                 error: 'Email o contraseña incorrectos'
             });
+        }
+
+        if (passwordVerification.needsUpgrade) {
+            const upgradedPassword = await hashPassword(password);
+            await pool.query(`
+                UPDATE public.usuarios
+                SET password = $1
+                WHERE id_usuario = $2
+                  AND password = $3
+            `, [upgradedPassword, usuario.id_usuario, usuario.password]);
         }
 
         // No devolver la contraseña al navegador
@@ -100,9 +182,19 @@ app.post('/api/registro', async (req, res) => {
         } = req.body;
 
         // Verificar datos obligatorios
-        if (!nombre || !apellido || !email || !password) {
+        if (
+            typeof nombre !== 'string' ||
+            typeof apellido !== 'string' ||
+            typeof email !== 'string' ||
+            typeof password !== 'string' ||
+            !nombre.trim() ||
+            !apellido.trim() ||
+            !email.trim() ||
+            password.length < 8 ||
+            Buffer.byteLength(password, 'utf8') > 1024
+        ) {
             return res.status(400).json({
-                error: 'Todos los campos son obligatorios'
+                error: 'Los campos son obligatorios y la contraseña debe tener al menos 8 caracteres'
             });
         }
 
@@ -138,7 +230,7 @@ app.post('/api/registro', async (req, res) => {
             nombre.trim(),
             apellido.trim(),
             email.trim().toLowerCase(),
-            password
+            await hashPassword(password)
         ]);
 
         res.status(201).json({
