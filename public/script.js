@@ -2237,6 +2237,40 @@ document.addEventListener('DOMContentLoaded', () => {
     configurarTransicionesPagina();
     configurarResumenReporte();
 
+    const dashboardDetailsToggle = document.getElementById('dashboard-details-toggle');
+    const dashboardDetails = document.getElementById('dashboard-details');
+
+    if (dashboardDetailsToggle && dashboardDetails) {
+        const actualizarTamanoDetalles = () => {
+            myChartDonut?.resize();
+            chartSemanal?.resize();
+            calendar?.updateSize();
+        };
+
+        dashboardDetailsToggle.addEventListener('click', () => {
+            const expandido = dashboardDetailsToggle.getAttribute('aria-expanded') !== 'true';
+            dashboardDetailsToggle.setAttribute('aria-expanded', String(expandido));
+            dashboardDetailsToggle.textContent = expandido ? 'Ver menos' : 'Ver más';
+            dashboardDetails.dataset.expanded = String(expandido);
+            dashboardDetails.setAttribute('aria-hidden', String(!expandido));
+            dashboardDetails.toggleAttribute('inert', !expandido);
+
+            if (expandido && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                requestAnimationFrame(actualizarTamanoDetalles);
+            }
+        });
+
+        dashboardDetails.addEventListener('transitionend', event => {
+            if (
+                event.target === dashboardDetails &&
+                event.propertyName === 'grid-template-rows' &&
+                dashboardDetails.dataset.expanded === 'true'
+            ) {
+                actualizarTamanoDetalles();
+            }
+        });
+    }
+
 
     // ==========================================
     // CARGAR DATOS INICIALES
@@ -3661,6 +3695,260 @@ async function abrirModalResumen(e) {
     } catch (e) { console.error("Error al cargar resumen:", e); }
 }
 
+const temaFinanzly = {
+    dorado: [210, 154, 26],
+    verde: [45, 122, 70],
+    verdeClaro: [16, 185, 129],
+    rojo: [239, 68, 68],
+    negro: [30, 41, 59],
+    gris: [100, 116, 139],
+    grisClaro: [248, 250, 252],
+    linea: [226, 232, 240]
+};
+
+async function exportarResumenFinanzasPdf() {
+    const modal = document.getElementById('modal-resumen');
+    if (!modal) return;
+
+    const res = JSON.parse(modal.dataset.tempResumen || '{}');
+    const trans = JSON.parse(modal.dataset.tempTrans || '[]');
+    if (!Array.isArray(trans) || trans.length === 0) {
+        alert('No hay transacciones para exportar en este resumen.');
+        return;
+    }
+
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('La librería PDF no está disponible en esta vista.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.setProperties({
+        title: 'Resumen Financiero - Finanzly',
+        subject: 'Informe financiero de ingresos, gastos y balance',
+        author: 'Finanzly',
+        creator: 'Finanzly'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 18;
+    const { verde, verdeClaro: emerald, dorado: gold, rojo: red, negro: ink, gris: muted, grisClaro: light } = temaFinanzly;
+    const green = verde;
+    const formatMoney = value => new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(Number(value || 0));
+
+    const drawHeader = () => {
+        doc.setFillColor(...green);
+        doc.rect(0, 0, pageWidth, 30, 'F');
+        doc.setFillColor(...gold);
+        doc.rect(0, 30, pageWidth, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(17);
+        doc.text('FINANZLY', margin + 20, 15);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text('GESTIÓN INTELIGENTE', margin + 20, 22);
+        doc.setFontSize(8);
+        doc.text('INFORME FINANCIERO', pageWidth - margin, 15, { align: 'right' });
+    };
+
+    const drawFooter = pageNumber => {
+        doc.setDrawColor(226, 232, 240);
+        doc.line(margin, pageHeight - 17, pageWidth - margin, pageHeight - 17);
+        doc.setTextColor(...muted);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text('Finanzly | Gestión inteligente de tus finanzas', margin, pageHeight - 10);
+        doc.text(`Página ${pageNumber}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+    };
+
+    const addLogo = () => new Promise(resolve => {
+        const logo = new Image();
+        logo.onload = () => {
+            doc.addImage(logo, 'PNG', margin, 8, 16, 16);
+            resolve();
+        };
+        logo.onerror = resolve;
+        logo.src = 'finanzly_verde.png';
+    });
+
+    const totalIngreso = Number(res.ingresos || 0);
+    const totalGasto = Number(res.gastos || 0);
+    const balance = Number(res.total || 0);
+    const ahorroRate = totalIngreso > 0 ? (balance / totalIngreso) * 100 : 0;
+    const categorias = Object.entries(res.gastosPorCat || {}).sort((a, b) => b[1] - a[1]);
+
+    drawHeader();
+    await addLogo();
+
+    doc.setTextColor(...ink);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('Resumen ejecutivo', margin, 49);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...muted);
+    doc.text(`Generado el ${new Date().toLocaleDateString('es-AR')} | ${trans.length} movimientos analizados`, margin, 57);
+
+    const cards = [
+        { label: 'TOTAL INGRESOS', value: formatMoney(totalIngreso), color: emerald },
+        { label: 'TOTAL GASTOS', value: formatMoney(totalGasto), color: red },
+        { label: 'BALANCE NETO', value: formatMoney(balance), color: green }
+    ];
+    const cardWidth = (pageWidth - margin * 2 - 10) / 3;
+
+    cards.forEach((card, index) => {
+        const x = margin + index * (cardWidth + 5);
+        doc.setFillColor(...light);
+        doc.roundedRect(x, 68, cardWidth, 38, 3, 3, 'F');
+        doc.setFillColor(...card.color);
+        doc.roundedRect(x, 68, 3, 38, 1.5, 1.5, 'F');
+        doc.setTextColor(...muted);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.text(card.label, x + 10, 80);
+        doc.setTextColor(...ink);
+        doc.setFontSize(12);
+        doc.text(card.value, x + 10, 96);
+    });
+
+    doc.setTextColor(...ink);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Indicadores de gestión', margin, 126);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...muted);
+    doc.text(`Tasa de ahorro: ${ahorroRate.toFixed(1)}%`, margin, 137);
+    doc.text(`Promedio por movimiento: ${formatMoney(trans.length ? (totalIngreso + totalGasto) / trans.length : 0)}`, margin + 70, 137);
+    doc.text(`Categorías con gastos: ${categorias.length || 'N/D'}`, margin + 145, 137);
+
+    doc.setTextColor(...ink);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Distribución de gastos por categoría', margin, 157);
+
+    const maxCategorias = Math.min(categorias.length, 8);
+    categorias.slice(0, maxCategorias).forEach(([categoria, monto], index) => {
+        const y = 168 + index * 9;
+        const porcentaje = totalGasto > 0 ? (monto / totalGasto) * 100 : 0;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...ink);
+        doc.text(String(categoria).substring(0, 23), margin, y);
+        doc.setFillColor(226, 232, 240);
+        doc.roundedRect(margin + 48, y - 4, 83, 3, 1.5, 1.5, 'F');
+        doc.setFillColor(...green);
+        doc.roundedRect(margin + 48, y - 4, Math.max(1, 83 * porcentaje / 100), 3, 1.5, 1.5, 'F');
+        doc.setTextColor(...muted);
+        doc.text(`${porcentaje.toFixed(1)}%  ${formatMoney(monto)}`, margin + 137, y);
+    });
+
+    if (!categorias.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...muted);
+        doc.text('No hay gastos registrados en el periodo seleccionado.', margin, 169);
+    }
+
+    const tableStart = 168 + Math.max(maxCategorias, 1) * 9 + 14;
+    doc.setTextColor(...ink);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('Detalle de movimientos', margin, tableStart);
+
+    const columns = [margin, 42, 72, 112, 174];
+    const headers = ['FECHA', 'TIPO', 'CATEGORÍA', 'DESCRIPCIÓN', 'MONTO'];
+    doc.setFillColor(...green);
+    doc.rect(margin, tableStart + 6, pageWidth - margin * 2, 10, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(7);
+    headers.forEach((header, index) => doc.text(header, columns[index] + 2, tableStart + 13));
+
+    let y = tableStart + 24;
+    let pageNumber = 1;
+    trans.forEach((movimiento, index) => {
+        if (y > pageHeight - 28) {
+            drawFooter(pageNumber);
+            doc.addPage();
+            pageNumber++;
+            drawHeader();
+            y = 47;
+            doc.setFillColor(...green);
+            doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
+            doc.setTextColor(255, 255, 255);
+            headers.forEach((header, headerIndex) => doc.text(header, columns[headerIndex] + 2, y + 7));
+            y += 18;
+        }
+
+        if (index % 2 === 0) {
+            doc.setFillColor(...light);
+            doc.rect(margin, y - 6, pageWidth - margin * 2, 10, 'F');
+        }
+
+        doc.setTextColor(...ink);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(String(movimiento.fecha || '').substring(0, 10), columns[0] + 2, y);
+        doc.setTextColor(...(String(movimiento.tipo || '').toLowerCase() === 'gasto' ? red : emerald));
+        doc.text(String(movimiento.tipo || '').toUpperCase(), columns[1] + 2, y);
+        doc.setTextColor(...ink);
+        doc.text(String(movimiento.categoria || '').substring(0, 17), columns[2] + 2, y);
+        doc.text(String(movimiento.descripcion || '').substring(0, 27), columns[3] + 2, y);
+        doc.text(formatMoney(movimiento.monto), columns[4] + 2, y);
+        y += 10;
+    });
+
+    drawFooter(pageNumber);
+
+    const chartCanvas = document.getElementById('chart-resumen-categorias');
+    if (chartCanvas && categorias.length) {
+        doc.addPage();
+        pageNumber++;
+        drawHeader();
+        doc.setTextColor(...ink);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text('Análisis visual', margin, 50);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...muted);
+        doc.text('Distribución proporcional de los gastos registrados', margin, 58);
+        doc.setFillColor(...light);
+        doc.roundedRect(margin, 68, pageWidth - margin * 2, 110, 4, 4, 'F');
+        doc.addImage(chartCanvas.toDataURL('image/png'), 'PNG', 35, 77, 140, 88);
+
+        const mayorGasto = categorias[0];
+        const balanceTexto = balance >= 0
+            ? 'El periodo presenta un balance positivo.'
+            : 'El periodo presenta un balance negativo y requiere revisión.';
+
+        doc.setTextColor(...ink);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text('Lectura del periodo', margin, 195);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(...muted);
+        doc.text(balanceTexto, margin, 206);
+        doc.text(`La categoría con mayor participación es ${mayorGasto[0]} (${((mayorGasto[1] / totalGasto) * 100).toFixed(1)}%).`, margin, 216);
+        doc.text(`El informe considera ${trans.length} movimientos y un volumen total de ${formatMoney(totalIngreso + totalGasto)}.`, margin, 226);
+        doc.setTextColor(...green);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Recomendación: revisa periódicamente las categorías de mayor peso para tomar decisiones informadas.', margin, 242);
+        drawFooter(pageNumber);
+    }
+
+    doc.save('Resumen_Finanzly.pdf');
+}
+
 /**
  * Configura los eventos del reporte de resumen de forma aislada mediante IDs.
  */
@@ -3671,237 +3959,325 @@ function configurarResumenReporte() {
         document.getElementById('modal-resumen').style.display = 'none';
     });
 
-    document.getElementById('btn-export-pdf')?.addEventListener('click', async () => {
-        const modal = document.getElementById('modal-resumen');
-        const res = JSON.parse(modal.dataset.tempResumen || '{}');
-        const trans = JSON.parse(modal.dataset.tempTrans || '[]');
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.setProperties({
-            title: 'Resumen Financiero - Finanzly',
-            subject: 'Informe académico de ingresos, gastos y balance',
-            author: 'Finanzly',
-            creator: 'Finanzly'
-        });
-
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 18;
-        const green = [45, 122, 70];
-        const emerald = [16, 185, 129];
-        const gold = [210, 154, 26];
-        const red = [239, 68, 68];
-        const ink = [30, 41, 59];
-        const muted = [100, 116, 139];
-        const light = [248, 250, 252];
-        const formatMoney = value => `$${Number(value || 0).toLocaleString('es-ES', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        })}`;
-        const addLogo = () => new Promise(resolve => {
-            const logo = new Image();
-            logo.onload = () => {
-                doc.addImage(logo, 'PNG', margin, 8, 16, 16);
-                resolve();
-            };
-            logo.onerror = resolve;
-            logo.src = 'finanzly_verde.png';
-        });
-        const drawHeader = () => {
-            doc.setFillColor(...green);
-            doc.rect(0, 0, pageWidth, 30, 'F');
-            doc.setFillColor(...gold);
-            doc.rect(0, 30, pageWidth, 2, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(17);
-            doc.text('FINANZLY', margin + 20, 15);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.text('GESTIÓN INTELIGENTE', margin + 20, 22);
-            doc.setFontSize(8);
-            doc.text('INFORME FINANCIERO', pageWidth - margin, 15, { align: 'right' });
-        };
-        const drawFooter = pageNumber => {
-            doc.setDrawColor(226, 232, 240);
-            doc.line(margin, pageHeight - 17, pageWidth - margin, pageHeight - 17);
-            doc.setTextColor(...muted);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.text('Finanzly | Gestión inteligente de tus finanzas', margin, pageHeight - 10);
-            doc.text(`Página ${pageNumber}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
-        };
-
-        drawHeader();
-        await addLogo();
-
-        doc.setTextColor(...ink);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text('Resumen ejecutivo', margin, 49);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(...muted);
-        doc.text(`Generado el ${new Date().toLocaleDateString('es-ES')} | ${trans.length} movimientos analizados`, margin, 57);
-
-        const cards = [
-            { label: 'TOTAL INGRESOS', value: formatMoney(res.ingresos), color: emerald },
-            { label: 'TOTAL GASTOS', value: formatMoney(res.gastos), color: red },
-            { label: 'BALANCE NETO', value: formatMoney(res.total), color: green }
-        ];
-        const cardWidth = (pageWidth - margin * 2 - 10) / 3;
-
-        cards.forEach((card, index) => {
-            const x = margin + index * (cardWidth + 5);
-            doc.setFillColor(...light);
-            doc.roundedRect(x, 68, cardWidth, 38, 3, 3, 'F');
-            doc.setFillColor(...card.color);
-            doc.roundedRect(x, 68, 3, 38, 1.5, 1.5, 'F');
-            doc.setTextColor(...muted);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7);
-            doc.text(card.label, x + 10, 80);
-            doc.setTextColor(...ink);
-            doc.setFontSize(12);
-            doc.text(card.value, x + 10, 96);
-        });
-
-        const totalGasto = Number(res.gastos || 0);
-        const totalIngreso = Number(res.ingresos || 0);
-        const ahorroRate = totalIngreso > 0 ? ((Number(res.total || 0) / totalIngreso) * 100) : 0;
-        doc.setTextColor(...ink);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text('Indicadores de gestión', margin, 126);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(...muted);
-        doc.text(`Tasa de ahorro: ${ahorroRate.toFixed(1)}%`, margin, 137);
-        doc.text(`Promedio por movimiento: ${formatMoney(trans.length ? (totalIngreso + totalGasto) / trans.length : 0)}`, margin + 70, 137);
-        doc.text(`Categorías con gastos: ${Object.keys(res.gastosPorCat || {}).length || 'N/D'}`, margin + 145, 137);
-
-        doc.setTextColor(...ink);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text('Distribución de gastos por categoría', margin, 157);
-        const gastosPorCat = res.gastosPorCat || {};
-        const categorias = Object.entries(gastosPorCat).sort((a, b) => b[1] - a[1]);
-        const maxCategorias = Math.min(categorias.length, 8);
-        categorias.slice(0, maxCategorias).forEach(([categoria, monto], index) => {
-            const y = 168 + index * 9;
-            const porcentaje = totalGasto > 0 ? (monto / totalGasto) * 100 : 0;
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(...ink);
-            doc.text(categoria.substring(0, 23), margin, y);
-            doc.setFillColor(226, 232, 240);
-            doc.roundedRect(margin + 48, y - 4, 83, 3, 1.5, 1.5, 'F');
-            doc.setFillColor(...green);
-            doc.roundedRect(margin + 48, y - 4, Math.max(1, 83 * porcentaje / 100), 3, 1.5, 1.5, 'F');
-            doc.setTextColor(...muted);
-            doc.text(`${porcentaje.toFixed(1)}%  ${formatMoney(monto)}`, margin + 137, y);
-        });
-        if (!categorias.length) {
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.setTextColor(...muted);
-            doc.text('No hay gastos registrados en el periodo seleccionado.', margin, 169);
-        }
-
-        const tableStart = 168 + Math.max(maxCategorias, 1) * 9 + 14;
-        doc.setTextColor(...ink);
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text('Detalle de movimientos', margin, tableStart);
-        const columns = [margin, 40, 70, 112, 174];
-        const headers = ['FECHA', 'TIPO', 'CATEGORÍA', 'DESCRIPCIÓN', 'MONTO'];
-        doc.setFillColor(...green);
-        doc.rect(margin, tableStart + 6, pageWidth - margin * 2, 10, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(7);
-        headers.forEach((header, index) => doc.text(header, columns[index] + 2, tableStart + 13));
-
-        let y = tableStart + 24;
-        let pageNumber = 1;
-        trans.forEach((movimiento, index) => {
-            if (y > pageHeight - 28) {
-                drawFooter(pageNumber);
-                doc.addPage();
-                pageNumber++;
-                drawHeader();
-                y = 47;
-                doc.setFillColor(...green);
-                doc.rect(margin, y, pageWidth - margin * 2, 10, 'F');
-                doc.setTextColor(255, 255, 255);
-                headers.forEach((header, headerIndex) => doc.text(header, columns[headerIndex] + 2, y + 7));
-                y += 18;
-            }
-            if (index % 2 === 0) {
-                doc.setFillColor(...light);
-                doc.rect(margin, y - 6, pageWidth - margin * 2, 10, 'F');
-            }
-            doc.setTextColor(...ink);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7);
-            doc.text(String(movimiento.fecha || '').substring(0, 10), columns[0] + 2, y);
-            doc.setTextColor(...(movimiento.tipo.toLowerCase() === 'gasto' ? red : emerald));
-            doc.text(String(movimiento.tipo || '').toUpperCase(), columns[1] + 2, y);
-            doc.setTextColor(...ink);
-            doc.text(String(movimiento.categoria || '').substring(0, 19), columns[2] + 2, y);
-            doc.text(String(movimiento.descripcion || '').substring(0, 29), columns[3] + 2, y);
-            doc.text(formatMoney(movimiento.monto), columns[4] + 2, y);
-            y += 10;
-        });
-
-        drawFooter(pageNumber);
-        const chartCanvas = document.getElementById('chart-resumen-categorias');
-        if (chartCanvas && categorias.length) {
-            doc.addPage();
-            pageNumber++;
-            drawHeader();
-            doc.setTextColor(...ink);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(16);
-            doc.text('Análisis visual', margin, 50);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(...muted);
-            doc.text('Distribución proporcional de los gastos registrados', margin, 58);
-            doc.setFillColor(...light);
-            doc.roundedRect(margin, 68, pageWidth - margin * 2, 105, 4, 4, 'F');
-            doc.addImage(chartCanvas.toDataURL('image/png'), 'PNG', 35, 77, 140, 88);
-
-            const mayorGasto = categorias[0];
-            const balanceTexto = Number(res.total || 0) >= 0
-                ? 'El periodo presenta un balance positivo.'
-                : 'El periodo presenta un balance negativo y requiere revisión.';
-            doc.setTextColor(...ink);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(11);
-            doc.text('Lectura del periodo', margin, 195);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(9);
-            doc.setTextColor(...muted);
-            doc.text(balanceTexto, margin, 206);
-            doc.text(`La categoría con mayor participación es ${mayorGasto[0]} (${((mayorGasto[1] / totalGasto) * 100).toFixed(1)}%).`, margin, 216);
-            doc.text(`El informe considera ${trans.length} movimientos y un volumen total de ${formatMoney(totalIngreso + totalGasto)}.`, margin, 226);
-            doc.setTextColor(...green);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Recomendación: revisa periódicamente las categorías de mayor peso para tomar decisiones informadas.', margin, 242);
-            drawFooter(pageNumber);
-        }
-        doc.save("Resumen_Finanzly.pdf");
+    document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
+        exportarResumenFinanzasPdf();
     });
 
     document.getElementById('btn-export-excel')?.addEventListener('click', () => {
-        const trans = JSON.parse(document.getElementById('modal-resumen').dataset.tempTrans || '[]');
-        const dataExcel = trans.map(({id, ...resto}) => resto);
-        const ws = XLSX.utils.json_to_sheet(dataExcel);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Transacciones");
-        XLSX.writeFile(wb, "Reporte_Finanzly.xlsx");
+        exportarResumenFinanzasExcel();
     });
 }
+
+function formatearFechaExcel(fecha) {
+    if (!fecha) return '';
+
+    const valor = new Date(`${String(fecha).substring(0, 10)}T00:00:00`);
+
+    if (Number.isNaN(valor.getTime())) {
+        return String(fecha);
+    }
+
+    return valor.toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+function formatearMontoExcel(valor) {
+    const numero = Number(valor || 0);
+    return Number.isFinite(numero) ? numero : 0;
+}
+
+function aplicarEstiloCabecera(sheet, fila, colores = { fill: 'D29A1A', text: 'FFFFFF' }) {
+    const rango = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+    const lastCol = Math.max(rango.e.c, 0);
+
+    for (let col = 0; col <= lastCol; col++) {
+        const cellRef = XLSX.utils.encode_cell({ r: fila, c: col });
+        if (!sheet[cellRef]) {
+            sheet[cellRef] = { t: 'n', v: '' };
+        }
+        sheet[cellRef].s = {
+            fill: { fgColor: { rgb: colores.fill } },
+            font: {
+                bold: true,
+                color: { rgb: colores.text },
+                sz: 11
+            },
+            alignment: { vertical: 'center', horizontal: 'center' },
+            border: {
+                top: { style: 'thin', color: { rgb: 'D6D9E0' } },
+                bottom: { style: 'thin', color: { rgb: 'D6D9E0' } },
+                left: { style: 'thin', color: { rgb: 'D6D9E0' } },
+                right: { style: 'thin', color: { rgb: 'D6D9E0' } }
+            }
+        };
+    }
+}
+
+function exportarResumenFinanzasExcel() {
+    if (!window.XLSX || typeof XLSX.writeFile !== 'function') {
+        alert('La librería de Excel no está disponible en esta vista.');
+        return;
+    }
+
+    const modal = document.getElementById('modal-resumen');
+    if (!modal) return;
+
+    const resumen = JSON.parse(modal.dataset.tempResumen || '{}');
+    const trans = JSON.parse(modal.dataset.tempTrans || '[]');
+
+    if (!Array.isArray(trans) || trans.length === 0) {
+        alert('No hay transacciones para exportar en este resumen.');
+        return;
+    }
+
+    const fechaActual = new Date();
+    const { dorado, verde, verdeClaro, rojo, negro, gris, grisClaro } = temaFinanzly;
+    const ingresos = trans.filter(t => String(t.tipo || '').toLowerCase() === 'ingreso');
+    const gastos = trans.filter(t => String(t.tipo || '').toLowerCase() === 'gasto');
+    const totalIngresos = ingresos.reduce((acc, t) => acc + formatearMontoExcel(t.monto), 0);
+    const totalGastos = gastos.reduce((acc, t) => acc + formatearMontoExcel(t.monto), 0);
+    const balanceNeto = totalIngresos - totalGastos;
+    const gastoPromedio = gastos.length ? totalGastos / gastos.length : 0;
+    const porcentajeGasto = totalIngresos > 0 ? (totalGastos / totalIngresos) * 100 : 0;
+
+    const fechas = trans
+        .map(t => String(t.fecha || '').substring(0, 10))
+        .filter(Boolean)
+        .sort();
+
+    const rango = fechas.length
+        ? `${formatearFechaExcel(fechas[0])} - ${formatearFechaExcel(fechas[fechas.length - 1])}`
+        : 'Sin datos';
+
+    const categorias = {};
+    gastos.forEach(t => {
+        const categoria = String(t.categoria || 'Sin categoría');
+        categorias[categoria] = (categorias[categoria] || 0) + formatearMontoExcel(t.monto);
+    });
+
+    const categoriaRows = Object.entries(categorias)
+        .sort((a, b) => b[1] - a[1])
+        .map(([categoria, monto]) => [
+            categoria,
+            monto,
+            totalGastos > 0 ? ((monto / totalGastos) * 100).toFixed(1) : '0.0'
+        ]);
+
+    const workbook = XLSX.utils.book_new();
+
+    const resumenData = [
+        ['FINANZLY', '', ''],
+        ['INFORME FINANCIERO', '', ''],
+        ['Período analizado', rango, ''],
+        ['Fecha de generación', fechaActual.toLocaleString('es-AR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }), ''],
+        ['Movimientos', trans.length, ''],
+        ['', '', ''],
+        ['INDICADORES CLAVE', '', ''],
+        ['Ingresos totales', totalIngresos, ''],
+        ['Gastos totales', totalGastos, ''],
+        ['Balance neto', balanceNeto, ''],
+        ['Gasto promedio por movimiento', gastoPromedio, ''],
+        ['Porcentaje de ingresos destinados a gastos', `${porcentajeGasto.toFixed(1)}%`, ''],
+        ['', '', ''],
+        ['TOP CATEGORÍAS DE GASTO', '', ''],
+        ['CATEGORÍA', 'MONTO', '% SOBRE GASTOS']
+    ];
+
+    categoriaRows.forEach(([categoria, monto, porcentaje]) => {
+        resumenData.push([categoria, monto, porcentaje]);
+    });
+
+    const summarySheet = XLSX.utils.aoa_to_sheet(resumenData);
+    summarySheet['!cols'] = [{ wch: 30 }, { wch: 22 }, { wch: 18 }];
+    summarySheet['!freeze'] = { ySplit: 1, xSplit: 0 };
+    summarySheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 2 } },
+        { s: { r: 14, c: 0 }, e: { r: 14, c: 2 } },
+        { s: { r: 15, c: 0 }, e: { r: 15, c: 2 } }
+    ];
+
+    const setCellStyle = (cellRef, config) => {
+        const cell = summarySheet[cellRef];
+        if (cell) {
+            cell.s = { ...(cell.s || {}), ...config };
+        }
+    };
+
+    const styleCurrencyCell = (cellRef) => {
+        const cell = summarySheet[cellRef];
+        if (!cell) return;
+        cell.z = '$#,##0.00';
+        cell.s = {
+            ...(cell.s || {}),
+            numFmt: '$#,##0.00',
+            alignment: { horizontal: 'right', vertical: 'center' }
+        };
+    };
+
+    setCellStyle('A1', {
+        fill: { fgColor: { rgb: 'D29A1A' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+    });
+    setCellStyle('A2', {
+        fill: { fgColor: { rgb: '1F2937' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+    });
+    setCellStyle('A7', {
+        fill: { fgColor: { rgb: '1F2937' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+    });
+    setCellStyle('B7', {
+        fill: { fgColor: { rgb: '1F2937' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+    });
+    setCellStyle('C7', {
+        fill: { fgColor: { rgb: '1F2937' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+        alignment: { horizontal: 'center', vertical: 'center' }
+    });
+
+    ['A3', 'A4', 'A5', 'A8', 'A9', 'A10', 'A11', 'A12', 'A13', 'A16', 'A17', 'A18', 'A19', 'A20', 'A21', 'A22', 'A23', 'A24', 'A25'].forEach((cellRef) => {
+        setCellStyle(cellRef, {
+            font: { bold: true, color: { rgb: '1F2937' }, sz: 10 },
+            fill: { fgColor: { rgb: 'F3F4F6' } }
+        });
+    });
+
+    ['B3', 'B4', 'B5', 'B8', 'B9', 'B10', 'B11', 'B12', 'B13', 'B17', 'B18', 'B19', 'B20', 'B21', 'B22', 'B23', 'B24', 'B25'].forEach((cellRef) => {
+        styleCurrencyCell(cellRef);
+    });
+
+    ['B15', 'B16', 'B17', 'B18', 'B19', 'B20', 'B21', 'B22', 'B23', 'B24', 'B25'].forEach((cellRef) => {
+        if (summarySheet[cellRef]) {
+            summarySheet[cellRef].s = { ...(summarySheet[cellRef].s || {}), alignment: { horizontal: 'right', vertical: 'center' } };
+        }
+    });
+
+    const crearHojaConEncabezados = (rows, headers, widthConfig, headerColor) => {
+        const hoja = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        hoja['!cols'] = widthConfig;
+        hoja['!freeze'] = { ySplit: 1, xSplit: 0 };
+
+        for (let col = 0; col < headers.length; col++) {
+            const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+            hoja[cellRef] = hoja[cellRef] || {};
+            hoja[cellRef].s = {
+                fill: { fgColor: { rgb: headerColor } },
+                font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: {
+                    top: { style: 'thin', color: { rgb: 'D6D9E0' } },
+                    bottom: { style: 'thin', color: { rgb: 'D6D9E0' } },
+                    left: { style: 'thin', color: { rgb: 'D6D9E0' } },
+                    right: { style: 'thin', color: { rgb: 'D6D9E0' } }
+                }
+            };
+        }
+
+        const range = XLSX.utils.decode_range(hoja['!ref'] || 'A1');
+        for (let row = 1; row <= range.e.r; row++) {
+            for (let col = 0; col < headers.length; col++) {
+                const cellRef = XLSX.utils.encode_cell({ r: row, c: col });
+                const cell = hoja[cellRef];
+                if (!cell) continue;
+                cell.s = {
+                    ...(cell.s || {}),
+                    border: {
+                        top: { style: 'thin', color: { rgb: 'E5E7EB' } },
+                        bottom: { style: 'thin', color: { rgb: 'E5E7EB' } },
+                        left: { style: 'thin', color: { rgb: 'E5E7EB' } },
+                        right: { style: 'thin', color: { rgb: 'E5E7EB' } }
+                    }
+                };
+                if (headers[col] === 'Monto' || headers[col] === 'Gasto') {
+                    cell.z = '$#,##0.00';
+                    cell.s = {
+                        ...(cell.s || {}),
+                        numFmt: '$#,##0.00',
+                        alignment: { horizontal: 'right', vertical: 'center' }
+                    };
+                }
+            }
+        }
+
+        return hoja;
+    };
+
+    const movimientosRows = trans.map(t => [
+        formatearFechaExcel(t.fecha),
+        String(t.tipo || '').toUpperCase(),
+        String(t.categoria || ''),
+        String(t.descripcion || ''),
+        formatearMontoExcel(t.monto)
+    ]);
+
+    const ingresosRows = ingresos.map(t => [
+        formatearFechaExcel(t.fecha),
+        String(t.categoria || ''),
+        String(t.descripcion || ''),
+        formatearMontoExcel(t.monto)
+    ]);
+
+    const gastosRows = gastos.map(t => [
+        formatearFechaExcel(t.fecha),
+        String(t.categoria || ''),
+        String(t.descripcion || ''),
+        formatearMontoExcel(t.monto)
+    ]);
+
+    const sheetMovimientos = crearHojaConEncabezados(
+        movimientosRows,
+        ['Fecha', 'Tipo', 'Categoría', 'Descripción', 'Monto'],
+        [{ wch: 16 }, { wch: 14 }, { wch: 20 }, { wch: 30 }, { wch: 18 }],
+        '1F2937'
+    );
+
+    const incomesSheet = crearHojaConEncabezados(
+        ingresosRows,
+        ['Fecha', 'Categoría', 'Descripción', 'Monto'],
+        [{ wch: 16 }, { wch: 22 }, { wch: 35 }, { wch: 18 }],
+        '10B981'
+    );
+
+    const expensesSheet = crearHojaConEncabezados(
+        gastosRows,
+        ['Fecha', 'Categoría', 'Descripción', 'Monto'],
+        [{ wch: 16 }, { wch: 22 }, { wch: 35 }, { wch: 18 }],
+        'EF4444'
+    );
+
+    const categoriasSheet = crearHojaConEncabezados(
+        categoriaRows,
+        ['Categoría', 'Monto', '% del total'],
+        [{ wch: 28 }, { wch: 18 }, { wch: 18 }],
+        'D29A1A'
+    );
+
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumen');
+    XLSX.utils.book_append_sheet(workbook, sheetMovimientos, 'Movimientos');
+    XLSX.utils.book_append_sheet(workbook, incomesSheet, 'Ingresos');
+    XLSX.utils.book_append_sheet(workbook, expensesSheet, 'Gastos');
+    XLSX.utils.book_append_sheet(workbook, categoriasSheet, 'Categorías');
+
+    XLSX.writeFile(workbook, `Resumen_Finanzly_${fechaActual.toISOString().slice(0, 10)}.xlsx`);
+}
+
+window.exportarResumenFinanzasExcel = exportarResumenFinanzasExcel;
 
 // ==========================================
 // SECCIÓN: ALERTAS DE PRESUPUESTO (MODULAR)

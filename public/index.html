@@ -70,6 +70,24 @@
             </div>
         </section>
 
+        <div class="dashboard-details-toggle-container">
+            <button
+                type="button"
+                id="dashboard-details-toggle"
+                class="dashboard-details-toggle"
+                aria-expanded="false"
+                aria-controls="dashboard-details"
+            >Ver más</button>
+        </div>
+
+        <div
+            id="dashboard-details"
+            class="dashboard-details"
+            data-expanded="false"
+            aria-hidden="true"
+            inert
+        >
+            <div class="dashboard-details-content">
        <section class="charts-grid">
             <!-- Fila 1, Col 1: Gráfico de Dona -->
             <div class="card dashboard-card">
@@ -145,6 +163,8 @@
                 </div>
             </section>
         </section>
+            </div>
+        </div>
     </main>
 
     <div id="modal-transaccion" class="modal-overlay" style="display: none;">

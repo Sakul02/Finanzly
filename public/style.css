@@ -214,6 +214,14 @@ body {
     text-align: center;
 }
 
+.auth-intro-logo {
+    display: block;
+    width: min(7rem, 38vw);
+    max-width: 128px;
+    height: auto;
+    margin: 0 auto 0.9rem;
+}
+
 .auth-intro-label {
     margin: 0 0 0.5rem;
     color: var(--gold);
@@ -402,6 +410,17 @@ body {
     .auth-top-btn {
         padding-inline: 0.75rem;
         font-size: 0.8rem;
+    }
+
+    .auth-intro-logo {
+        width: min(6.2rem, 42vw);
+        margin-bottom: 0.75rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .auth-intro-logo {
+        display: none;
     }
 }
 
@@ -761,6 +780,62 @@ body {
 
 .expense-card { background-color: var(--expense-bg); border-color: var(--border); }
 .expense-icon { background-color: rgba(239, 68, 68, 0.15); }
+
+.dashboard-details-toggle-container {
+    display: flex;
+    justify-content: center;
+    margin: 1rem 0 0;
+}
+
+.dashboard-details-toggle {
+    min-height: 44px;
+    padding: 0.65rem 1.4rem;
+    border: 1px solid var(--gold);
+    border-radius: 999px;
+    background: var(--gold);
+    color: #081018;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.dashboard-details-toggle:hover {
+    filter: brightness(0.94);
+}
+
+.dashboard-details-toggle:active {
+    transform: translateY(1px);
+}
+
+.dashboard-details-toggle:focus-visible {
+    outline: 3px solid var(--text-main);
+    outline-offset: 3px;
+}
+
+.dashboard-details {
+    display: grid;
+    grid-template-rows: 0fr;
+    overflow: hidden;
+    transition: grid-template-rows 320ms ease;
+}
+
+.dashboard-details[data-expanded="true"] {
+    grid-template-rows: 1fr;
+}
+
+.dashboard-details-content {
+    min-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateX(16px);
+    transition: opacity 260ms ease-out, transform 320ms ease-out;
+}
+
+.dashboard-details[data-expanded="true"] .dashboard-details-content {
+    opacity: 1;
+    transform: translateX(0);
+}
 
 /* --- SECCIÓN DE GRÁFICOS (MODIFICADO) --- */
 .charts-grid {
@@ -2214,8 +2289,18 @@ input::-webkit-credentials-reveal-button {
     }
 
     .user-menu {
+        display: flex;
         flex: 1 1 auto;
+        flex-direction: column;
+        align-items: center;
         min-width: 0;
+    }
+
+    .user-menu-dropdown {
+        position: static;
+        width: min(12rem, calc(100vw - 1.5rem));
+        margin-top: 0.5rem;
+        transform: none;
     }
 
     .user-menu-trigger {
@@ -2533,5 +2618,13 @@ input::-webkit-credentials-reveal-button {
     .login-page body > div:first-child {
         display: flex;
         min-width: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-details,
+    .dashboard-details-content,
+    .dashboard-details-toggle {
+        transition: none;
     }
 }
